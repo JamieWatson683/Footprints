@@ -45,23 +45,16 @@ class DataLoader(object):
             self.footprints = footprints
             self.images = images
 
-    def randomise_validation_data(self, validation_proportion=0.2):
-        ordering = np.random.permutation(len(self.train_masks))
-        val_indices = ordering[int(len(ordering)*(1-validation_proportion)):]
-        train_indices = ordering[:int(len(ordering)*(1-validation_proportion))]
-
-        # Add training data to val data
-        self.val_masks = self.train_masks[val_indices]
-        self.val_footprints = self.train_footprints[val_indices]
-        self.val_images = self.train_images[val_indices]
-
-        # Remove val data from training data
-        self.train_masks = self.train_masks[train_indices]
-        self.train_footprints = self.train_footprints[train_indices]
-        self.train_images = self.train_images[train_indices]
+    def shuffle_data(self):
+        ordering = np.random.permutation(len(self.inputs))
+        self.inputs = self.inputs[ordering]
+        self.labels = self.labels[ordering]
 
 
     def crop_example(self, mask, image, footprint, output_shape, height_expand=0.3, width_expand=0.3):
+        """WARNING DO NOT USE - need to amend to not use footprint for bbox calculation...maybe another network to
+        predict this from obscured image"""
+
         # Get bounding box of mask (for height) and footprint (for width)
         bbox_mask = measure.regionprops(measure.label(mask))[0].bbox
         height_expand = int((bbox_mask[2] - bbox_mask[0]) * height_expand / 2)
@@ -90,24 +83,35 @@ class DataLoader(object):
 
         return mask, image, footprint, bbox
 
-    def prepare_data(self, output_shape, height_expand=0.3, width_expand=0.3):
+    def prepare_data(self, output_shape, height_expand=0.3, width_expand=0.3, crop_all=False):
 
-        size = len(self.masks)
+        if not crop_all:
+            size = len(self.masks)
 
         # intialise for storage
-        cropped_masks = np.zeros([size, output_shape[0], output_shape[1]], dtype=int)
-        cropped_footprints = np.zeros_like(cropped_masks)
-        cropped_images = np.zeros([size, output_shape[0], output_shape[1], 3])
-        bboxes = np.zeros([size, 4], dtype=int)
+            cropped_masks = np.zeros([size, output_shape[0], output_shape[1]], dtype=int)
+            cropped_footprints = np.zeros_like(cropped_masks)
+            cropped_images = np.zeros([size, output_shape[0], output_shape[1], 3])
+            bboxes = np.zeros([size, 4], dtype=int)
 
-        for index in range(size):
-            # Loop and store cropped data
-            cropped_masks[index], cropped_images[index], cropped_footprints[index], bboxes[index] = \
-            self.crop_example(self.masks[index], self.images[index], self.footprints[index],
-                              output_shape=output_shape, height_expand=height_expand, width_expand=width_expand)
+            for index in range(size):
+                # Loop and store cropped data
+                cropped_masks[index], cropped_images[index], cropped_footprints[index], bboxes[index] = \
+                self.crop_example(self.masks[index], self.images[index], self.footprints[index],
+                                  output_shape=output_shape, height_expand=height_expand, width_expand=width_expand)
 
-        # Save in form for network
-        cropped_masks = np.expand_dims(cropped_masks, axis=-1)
-        self.inputs = np.concatenate((cropped_masks, cropped_images), axis=-1)
-        self.labels = cropped_footprints
-        self.bboxes = bboxes
+            # Save in form for network
+            cropped_masks = np.expand_dims(cropped_masks, axis=-1)
+            self.inputs = np.concatenate((cropped_masks, cropped_images), axis=-1)
+            self.labels = cropped_footprints
+            self.bboxes = bboxes
+
+        else:
+            masks = np.expand_dims(self.masks, -1)
+            self.inputs = np.concatenate((self.images, masks,), axis=-1)
+            self.inputs = np.transpose(self.inputs, [0,3,1,2]) # for pytorch style inputs (batch x C x H x W)
+            self.labels = self.footprints
+
+    def save_data(self, path, name):
+        np.save(path+name+"_inputs", self.inputs)
+        np.save(path+name+"_labels", self.labels)

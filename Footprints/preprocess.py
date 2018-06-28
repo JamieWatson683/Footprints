@@ -99,15 +99,6 @@ def place_all_footprints(path, left_homography, right_homography, column_homog_c
         # Load footprint
         sky_footprint = np.load(path+"sky_footprints/footprints/sky_video"+name[12:-4]+".npy").astype(int)
 
-        # # extract number to match sky footprint
-        # number = name[name.find("video ")+6:-4]
-        #
-        # sky_footprints = os.listdir(path+"sky_footprints/footprints/")
-        # for footprint in sky_footprints:
-        #     if footprint[len(footprint)-4-len(number):-4] == number:
-        #         sky_footprint = np.load(path+"sky_footprints/footprints/"+footprint).astype(int)
-        #         break
-
         footprint_props = measure.regionprops(sky_footprint)[0]
         if footprint_props.centroid[1] >= column_homog_cutoff:
             ground_footprint, overlay = place_footprint(image, sky_footprint, right_homography)
