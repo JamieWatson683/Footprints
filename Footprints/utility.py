@@ -13,7 +13,7 @@ class DataLoader(object):
         self.filenames = None
         self.bboxes = None  # To store bbox of cropped image for reconstruction
 
-    def load_data(self, path, image_size=(288,512)):
+    def load_raw_data(self, path, image_size=(288,512)):
         filenames = os.listdir(path+"ground_masks/masks/")
         filenumber = len(filenames)
 
@@ -85,7 +85,7 @@ class DataLoader(object):
 
     def prepare_data(self, output_shape, height_expand=0.3, width_expand=0.3, crop_all=False):
 
-        if not crop_all:
+        if crop_all:
             size = len(self.masks)
 
         # intialise for storage
@@ -115,3 +115,9 @@ class DataLoader(object):
     def save_data(self, path, name):
         np.save(path+name+"_inputs", self.inputs)
         np.save(path+name+"_labels", self.labels)
+
+if __name__ == '__main__':
+    dataloader = DataLoader()
+    dataloader.load_raw_data('./data/')
+    dataloader.prepare_data(output_shape=None)
+    dataloader.save_data(path='./data/', name='testdata')
