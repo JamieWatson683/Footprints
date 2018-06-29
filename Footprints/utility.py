@@ -1,9 +1,12 @@
 import numpy as np
 from skimage import io, transform, measure
+from torch.utils.data import Dataset, DataLoader
 import os
 
 
-class DataLoader(object):
+class DataProcessor(object):
+    """ Class to process raw images, masks and footprints to generate and save network inputs and labels as .npy files
+    """
     def __init__(self):
         self.masks = None
         self.footprints = None
@@ -11,7 +14,6 @@ class DataLoader(object):
         self.inputs = None
         self.labels = None
         self.filenames = None
-        self.bboxes = None  # To store bbox of cropped image for reconstruction
 
     def load_raw_data(self, path, image_size=(288,512)):
         filenames = os.listdir(path+"ground_masks/masks/")
@@ -50,74 +52,32 @@ class DataLoader(object):
         self.inputs = self.inputs[ordering]
         self.labels = self.labels[ordering]
 
+    def prepare_data(self, output_shape):
 
-    def crop_example(self, mask, image, footprint, output_shape, height_expand=0.3, width_expand=0.3):
-        """WARNING DO NOT USE - need to amend to not use footprint for bbox calculation...maybe another network to
-        predict this from obscured image"""
+        size = len(self.masks)
+        # Initialise
+        masks = np.zeros([size, output_shape[0], output_shape[1]], dtype=int)
+        footprints = np.zeros_like(masks)
+        images = np.zeros([size, output_shape[0], output_shape[1], 3])
+        for i in range(size):
+            # Loop and resize to output_shape
+            masks[i] = transform.resize(self.masks[i], output_shape=output_shape)
+            footprints[i] = transform.resize(self.footprints[i], output_shape=output_shape)
+            images[i] = transform.resize(self.images[i], output_shape=output_shape)
 
-        # Get bounding box of mask (for height) and footprint (for width)
-        bbox_mask = measure.regionprops(measure.label(mask))[0].bbox
-        height_expand = int((bbox_mask[2] - bbox_mask[0]) * height_expand / 2)
+        masks = np.expand_dims(masks, -1)
+        self.inputs = np.concatenate((images, masks,), axis=-1)
+        self.inputs = np.transpose(self.inputs, [0,3,1,2]) # for pytorch style inputs (batch x C x H x W)
+        self.labels = footprints
 
-        bbox_footprint = measure.regionprops(measure.label(footprint))[0].bbox
-        width_expand = int((bbox_footprint[3] - bbox_footprint[1]) * width_expand / 2)
+    def save_data(self, path):
+        index = len(os.listdir(path+"inputs"))
+        for i in range(len(self.inputs)):
+            np.save(path + "inputs/input_" + str(i+index), self.inputs[i])
+            np.save(path + "labels/label_" + str(i+index), self.labels[i])
 
-        # Compute expanded bounding box coordinates
-        left = max(bbox_footprint[1] - width_expand, 0)
-        right = min(bbox_footprint[3] + width_expand, mask.shape[1] - 1)
-        top = max(bbox_mask[0] - height_expand, 0)
-        bottom = min(bbox_mask[2] + height_expand, mask.shape[0])
-
-        # Crop inputs and resize
-        mask = transform.resize(mask[top:bottom, left:right], output_shape=output_shape)
-        image = transform.resize(image[top:bottom, left:right, :], output_shape=output_shape)
-        footprint = transform.resize(footprint[top:bottom, left:right], output_shape=output_shape)
-
-        # Normalise and threshold
-        mask = (mask / mask.max()) > 0.5
-        footprint = (footprint / footprint.max()) > 0.5
-        image = image / image.max()
-
-        # save new bbox coordinates
-        bbox = np.array([top, left, bottom, right])
-
-        return mask, image, footprint, bbox
-
-    def prepare_data(self, output_shape, height_expand=0.3, width_expand=0.3, crop_all=False):
-
-        if crop_all:
-            size = len(self.masks)
-
-        # intialise for storage
-            cropped_masks = np.zeros([size, output_shape[0], output_shape[1]], dtype=int)
-            cropped_footprints = np.zeros_like(cropped_masks)
-            cropped_images = np.zeros([size, output_shape[0], output_shape[1], 3])
-            bboxes = np.zeros([size, 4], dtype=int)
-
-            for index in range(size):
-                # Loop and store cropped data
-                cropped_masks[index], cropped_images[index], cropped_footprints[index], bboxes[index] = \
-                self.crop_example(self.masks[index], self.images[index], self.footprints[index],
-                                  output_shape=output_shape, height_expand=height_expand, width_expand=width_expand)
-
-            # Save in form for network
-            cropped_masks = np.expand_dims(cropped_masks, axis=-1)
-            self.inputs = np.concatenate((cropped_masks, cropped_images), axis=-1)
-            self.labels = cropped_footprints
-            self.bboxes = bboxes
-
-        else:
-            masks = np.expand_dims(self.masks, -1)
-            self.inputs = np.concatenate((self.images, masks,), axis=-1)
-            self.inputs = np.transpose(self.inputs, [0,3,1,2]) # for pytorch style inputs (batch x C x H x W)
-            self.labels = self.footprints
-
-    def save_data(self, path, name):
-        np.save(path+name+"_inputs", self.inputs)
-        np.save(path+name+"_labels", self.labels)
-
-if __name__ == '__main__':
-    dataloader = DataLoader()
-    dataloader.load_raw_data('./data/')
-    dataloader.prepare_data(output_shape=None)
-    dataloader.save_data(path='./data/', name='testdata')
+if __name__=='__main__':
+    dataprocessor = DataProcessor()
+    dataprocessor.load_raw_data(path="./data")
+    dataprocessor.prepare_data(output_shape=(128, 128))
+    dataprocessor.save_data("./data/training_data/")
