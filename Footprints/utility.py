@@ -5,14 +5,16 @@ import os
 
 
 class DataProcessor(object):
-    """ Class to process raw images, masks and footprints to generate and save network inputs and labels as .npy files
+    """ Class to process raw images, masks and footprints to generate and save network inputs and labels as .npy files.
+    Saves data as [C x H x W] as per Pytorch ordering.
+        -> C = [R, G, B, Mask, Footprint]
     """
     def __init__(self):
-        self.masks = None
-        self.footprints = None
-        self.images = None
-        self.inputs = None
-        self.labels = None
+        self.masks = np.array([])
+        self.footprints = np.array([])
+        self.images = np.array([])
+        self.train_data = None
+        self.val_data = None
         self.filenames = None
 
     def load_raw_data(self, path, image_size=(288,512)):
@@ -38,46 +40,48 @@ class DataProcessor(object):
         # Save file name ordering for reconstruction later
         self.filenames = np.array([filenames])
 
-        if self.masks:  # if data in train_masks then add to it
-            self.masks = np.concatenate((self.masks, masks), axis=0)
-            self.footprints = np.concatenate((self.footprints, footprints), axis=0)
-            self.images = np.concatenate((self.images, images), axis=0)
-        else:  # otherwise set explicitly
-            self.masks = masks
-            self.footprints = footprints
-            self.images = images
+        # if len(self.masks)!=0:  # if data in train_masks then add to it
+        #     self.masks = np.concatenate((self.masks, masks), axis=0)
+        #     self.footprints = np.concatenate((self.footprints, footprints), axis=0)
+        #     self.images = np.concatenate((self.images, images), axis=0)
+        # else:  # otherwise set explicitly
+        self.masks = masks
+        self.footprints = footprints
+        self.images = images
 
     def shuffle_data(self):
-        ordering = np.random.permutation(len(self.inputs))
-        self.inputs = self.inputs[ordering]
-        self.labels = self.labels[ordering]
+        ordering = np.random.permutation(len(self.train_data))
+        self.train_data = self.train_data[ordering]
+
+    def valitdation_split(self, val_fraction):
+        self.shuffle_data()
+        self.val_data = self.train_data[:int(round(val_fraction * len(self.train_data)))]
+        self.train_data = self.train_data[int(round(val_fraction * len(self.train_data))):]
 
     def prepare_data(self, output_shape):
 
         size = len(self.masks)
         # Initialise
         masks = np.zeros([size, output_shape[0], output_shape[1]], dtype=int)
-        footprints = np.zeros_like(masks)
+        footprints = np.zeros([size, output_shape[0], output_shape[1]], dtype=float)
         images = np.zeros([size, output_shape[0], output_shape[1], 3])
         for i in range(size):
             # Loop and resize to output_shape
-            masks[i] = transform.resize(self.masks[i], output_shape=output_shape)
-            footprints[i] = transform.resize(self.footprints[i], output_shape=output_shape)
-            images[i] = transform.resize(self.images[i], output_shape=output_shape)
+            masks[i] = transform.resize(self.masks[i], output_shape=output_shape, preserve_range=True)
+            footprints[i] = transform.resize(self.footprints[i], output_shape=output_shape, preserve_range=True)
+            images[i] = transform.resize(self.images[i], output_shape=output_shape, preserve_range=True)
 
         masks = np.expand_dims(masks, -1)
-        self.inputs = np.concatenate((images, masks,), axis=-1)
-        self.inputs = np.transpose(self.inputs, [0,3,1,2]) # for pytorch style inputs (batch x C x H x W)
-        self.labels = footprints
+        footprints = np.expand_dims((footprints > 0.5).astype(int), -1)
+        self.train_data = np.concatenate((images, masks, footprints), axis=-1)
+        self.train_data = np.transpose(self.train_data, [0,3,1,2]) # for pytorch style inputs (batch x C x H x W)
 
-    def save_data(self, path):
-        index = len(os.listdir(path+"inputs"))
-        for i in range(len(self.inputs)):
-            np.save(path + "inputs/input_" + str(i+index), self.inputs[i])
-            np.save(path + "labels/label_" + str(i+index), self.labels[i])
+    def save_data(self, path, val_path=None):
+        index = len(os.listdir(path))
+        for i in range(len(self.train_data)):
+            np.save(path + "data_" + str(i+index), self.train_data[i])
 
-if __name__=='__main__':
-    dataprocessor = DataProcessor()
-    dataprocessor.load_raw_data(path="./data")
-    dataprocessor.prepare_data(output_shape=(128, 128))
-    dataprocessor.save_data("./data/training_data/")
+        if val_path:
+            index = len(os.listdir(val_path))
+            for i in range(len(self.val_data)):
+                np.save(val_path + "data_" + str(i + index), self.val_data[i])
