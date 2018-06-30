@@ -81,12 +81,17 @@ class Trainer(nn.Module):
                 loss = self.criterion(y_hat, labels)
                 self.validation_loss.append(loss)
                 print("Validation loss: {}".format(loss))
+            # Save model after each epoch
+            torch.save(self.model, "./training_logs/unet.pt")
+        print("Finished training -> saving losses")
+        self.training_loss = np.save("./training_logs/training_loss", np.array(self.training_loss))
+        self.validation_loss = np.save("./training_logs/validation_loss", np.array(self.validation_loss))
 
 
 if __name__ == "__main__":
     unet = models.U_Net()
     trainer = Trainer(model=unet, training_path='./data/training_data/',
-                      validation_path='./data/validation_data/', batch_size=16, train_eval_fraction=0.1)
+                      validation_path='./data/validation_data/', batch_size=16, train_eval_fraction=0.1, use_GPU=True)
     trainer.train_model(epochs=10)
 
 
