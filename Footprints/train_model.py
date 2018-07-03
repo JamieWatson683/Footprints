@@ -1,8 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import models
 import datasets
@@ -54,7 +52,7 @@ class Trainer(nn.Module):
                     labels = labels.to(device=self.gpu)
                 y_hat = self.model.forward(inputs)
                 loss = self.criterion(y_hat, labels)
-                if i % 25 == 0:
+                if i % 10 == 0:
                     print("Batch Number {}".format(i))
                     print("Loss -> {}".format(loss))
                 self.optimiser.zero_grad()
@@ -79,7 +77,7 @@ class Trainer(nn.Module):
                     total_loss += loss
                     # del inputs, labels, loss, y_hat
                     # torch.cuda.empty_cache()
-                total_loss = total_loss / (i*self.batch_size)
+                total_loss = total_loss / len(self.train_eval_dataloader)
                 self.training_loss.append(total_loss)
                 print("Mean Training loss: {}".format(total_loss))
 
@@ -97,7 +95,7 @@ class Trainer(nn.Module):
                     total_loss += loss
                     # del inputs, labels, loss, y_hat
                     # torch.cuda.empty_cache()
-                total_loss = total_loss / (i*self.batch_size)
+                total_loss = total_loss / len(self.val_dataloader)
                 self.validation_loss.append(total_loss)
                 print("Validation loss: {}".format(total_loss))
             # Save model after each epoch
@@ -118,7 +116,7 @@ class Trainer(nn.Module):
 if __name__ == "__main__":
     unet = models.U_Net()
     trainer = Trainer(model=unet, training_path='./data/training_data/',
-                      validation_path='./data/validation_data/', batch_size=1, use_GPU=False)
+                      validation_path='./data/validation_data/', batch_size=32, use_GPU=True)
     trainer.train_model(epochs=10)
 
 

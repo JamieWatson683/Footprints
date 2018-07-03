@@ -1,6 +1,6 @@
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-from skimage import transform
+import cv2
 import scipy.ndimage as ndi
 import os
 
@@ -65,7 +65,7 @@ class FootprintsDataset(Dataset):
 
     def crop_and_resize(self, image, topleft, bottomright, binary=False):  # (25,25 | 110,240)
         crop = image[topleft[0]:bottomright[0], topleft[1]:bottomright[1]]
-        crop = transform.resize(crop, (self.image_size[0], self.image_size[1]))
+        crop = cv2.resize(crop, (self.image_size[1], self.image_size[0]))
         if binary:
             crop = (crop > 0.5).astype(float)
         return crop

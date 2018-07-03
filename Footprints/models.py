@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
 
 
 class U_Net(nn.Module):
@@ -100,19 +99,3 @@ class FinalDecoderLayer(nn.Module):
         x = self.conv3(x)
         self.probability = F.sigmoid(x)
         return x
-
-
-if __name__ == "__main__":
-    unet = torch.load("./training_logs/unet.pt", map_location=lambda storage, loc: storage)
-    sample = 26
-    data = np.load("./data/validation_data/data_"+str(sample)+".npy")
-    sample = torch.from_numpy(np.expand_dims(data, 0)[:,:-1,:,:]).float()
-    with torch.no_grad():
-        unet.forward(sample)
-        prob = unet.final.probability
-    plt.figure()
-    plt.imshow(np.transpose(sample[0,0:3,:,:], [1,2,0]))
-    plt.show()
-    plt.figure(figsize=(5,5))
-    plt.imshow(prob[0,0,:,:])
-    plt.show()
