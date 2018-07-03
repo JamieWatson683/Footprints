@@ -16,10 +16,12 @@ class Trainer(nn.Module):
         self.model = model
         self.save_name = save_name
         self.training_data = datasets.FootprintsDataset(training_path, augment=True)
-        self.validation_data = datasets.FootprintsDataset(validation_path)
+        self.training_eval_data = datasets.FootprintsDataset(training_path, augment=False)
+        self.validation_data = datasets.FootprintsDataset(validation_path, augment=False)
         self.use_GPU = use_GPU
 
         self.train_dataloader = DataLoader(self.training_data, batch_size=batch_size, shuffle=True)
+        self.train_eval_dataloader = DataLoader(self.training_eval_data, batch_size=batch_size, shuffle=True)
         self.val_dataloader = DataLoader(self.validation_data, batch_size=batch_size)
         self.training_loss = []
         self.validation_loss = []
@@ -65,7 +67,7 @@ class Trainer(nn.Module):
             # Estimate training loss
             with torch.no_grad():
                 total_loss = 0
-                for i, samples in enumerate(self.train_dataloader):
+                for i, samples in enumerate(self.train_eval_dataloader):
                     inputs = samples['inputs'].float()
                     labels = samples['labels'].float().unsqueeze(1)
                     # Use GPU if available
@@ -116,7 +118,7 @@ class Trainer(nn.Module):
 if __name__ == "__main__":
     unet = models.U_Net()
     trainer = Trainer(model=unet, training_path='./data/training_data/',
-                      validation_path='./data/validation_data/', batch_size=16, use_GPU=True)
+                      validation_path='./data/validation_data/', batch_size=1, use_GPU=False)
     trainer.train_model(epochs=10)
 
 

@@ -1,23 +1,15 @@
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
-from torchvision.transforms import functional as F
-import cv2
+from skimage import transform
+import scipy.ndimage as ndi
 import os
 
 
 class FootprintsDataset(Dataset):
-    def __init__(self, path, augment=False, crop_pixels=(10, 15), rotation_max=5):
+    def __init__(self, path, augment=False):
         self.path = path
         self.size = len(os.listdir(path))
         self.augment = augment
-        if self.augment:
-            self.toPIL = transforms.ToPILImage()
-            self.toTensor = transforms.ToTensor()
-            self.height_crop = crop_pixels[0]
-            self.width_crop = crop_pixels[1]
-            self.rotation_max = rotation_max
-
 
     def __len__(self):
         return self.size
@@ -32,46 +24,51 @@ class FootprintsDataset(Dataset):
         return sample
 
     def augment_datapoint(self, datapoint):
-        datapoint = (datapoint * 255).astype(np.uint8)
-        img = self.toPIL(datapoint[0:3])
-        mask = self.toPIL(datapoint[3])
-        footprint = self.toPIL(datapoint[-1])
-        size = mask.shape
+        self.image_size = datapoint.shape[1:]
+        random_gen = np.random.rand(7) # alpha, beta, angle, top, left, bottom, right
+        datapoint_t = np.transpose(datapoint, [1,2,0])
+        image = datapoint_t[:,:,:3]
+        mask = datapoint_t[:,:,3]
+        footprint = datapoint_t[:,:,4]
 
-        # Adjust colours
-        img = transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1)
+        # Amend contrast
+        image = self.amend_contrast(image, 0.75+random_gen[0]*0.5, -0.1+random_gen[1]*0.2)
+        # Crop and resize
+        top = int(random_gen[3]*25)
+        left = int(random_gen[4]*25)
+        bottom = int(self.image_size[0] - random_gen[5]*18)
+        right = int(self.image_size[1] - random_gen[6]*16)
+        image = self.crop_and_resize(image, (top,left), (bottom,right))
+        mask = self.crop_and_resize(mask, (top, left), (bottom, right), binary=True)
+        footprint = self.crop_and_resize(footprint, (top, left), (bottom, right), binary=True)
+        # Rotate all
+        angle = -3 + random_gen[2] * 6
+        image = self.rotate_image(image, angle)
+        mask = self.rotate_image(mask, angle)
+        footprint = self.rotate_image(footprint, angle)
 
-        # Random cropping
-        crop_fractions = np.random.rand(4)
-        top = crop_fractions[0] * self.height_crop
-        bottom = size[0] - 1 - int(crop_fractions[1] * self.height_crop)
-        left = crop_fractions[1] * int(crop_fractions[2] * self.width_crop)
-        right = size[1] - 1 - int(crop_fractions[3] * self.width_crop)
-        img = img.crop(left, top, right, bottom)
-        mask = mask.crop(left, top, right, bottom)
-        footprint = footprint.crop(left, top, right, bottom)
+        datapoint[0:3] = np.transpose(image, [2,0,1])
+        datapoint[3] = mask
+        datapoint[4] = footprint
 
-        # Random flip
-        p = np.random.rand()
-        if p > 0.5:
-            img = F.hflip(img)
-            mask = F.hflip(mask)
-            footprint = F.hflip(footprint)
-
-        # Random rotation
-        angle = - self.rotation_max + self.rotation_max * np.random.rand() * 2
-        img = img.rotate(angle)
-        mask = mask.rotate(angle)
-        footprint = footprint.rotate(angle)
-
-        img = self.toTensor(img)
-        mask = self.toTensor(mask)
-        footprint = self.toTensor(footprint)
-        datapoint[0:3] = img.float() / 255
-        datapoint[3] = mask.float() / 255
-        datapoint[-1] = footprint.float() / 255
         return datapoint
 
+    def amend_contrast(self, image, alpha, beta):  # (0.75,1.25 | -0.1,0.1)
+        image = image * alpha + beta
+        image = np.minimum(image, 1.0)
+        image = np.maximum(image, 0.0)
+        return image
+
+    def rotate_image(self, image, angle):  # +- 3
+        image = ndi.interpolation.rotate(image, angle, reshape=False)
+        return image
+
+    def crop_and_resize(self, image, topleft, bottomright, binary=False):  # (25,25 | 110,240)
+        crop = image[topleft[0]:bottomright[0], topleft[1]:bottomright[1]]
+        crop = transform.resize(crop, (self.image_size[0], self.image_size[1]))
+        if binary:
+            crop = (crop > 0.5).astype(float)
+        return crop
 
 
 
