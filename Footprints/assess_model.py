@@ -37,3 +37,16 @@ def compare_heatmap(image, heatmap, label):
     plt.show()
 
 
+if __name__=='__main__':
+    indices = range(300, 350, 5)
+    print("Loading model...")
+    model = load_model("./training_logs/unet.pt")
+    print("Complete")
+    samples = load_samples(path="./data/training_data/", indices=indices)
+    print("Generating heatmaps...")
+    heatmaps, labels = get_sample_heatmaps(model, samples)
+    print("Done")
+    for i in range(len(indices)):
+        index = indices[i]
+        img = np.transpose(samples[i, 0:3, :, :], [1,2,0])
+        compare_heatmap(img, heatmaps[i, 0, :, :], labels[i])

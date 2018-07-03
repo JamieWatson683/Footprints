@@ -9,12 +9,13 @@ import datasets
 
 
 class Trainer(nn.Module):
-    def __init__(self, model, training_path, validation_path, batch_size=8,
+    def __init__(self, model, training_path, validation_path, save_name='model', batch_size=8,
                  learning_rate=0.001, use_GPU=False):
         super(Trainer, self).__init__()
         print("Creating training session...")
         self.model = model
-        self.training_data = datasets.FootprintsDataset(training_path)
+        self.save_name = save_name
+        self.training_data = datasets.FootprintsDataset(training_path, augment=True)
         self.validation_data = datasets.FootprintsDataset(validation_path)
         self.use_GPU = use_GPU
 
@@ -26,7 +27,7 @@ class Trainer(nn.Module):
 
         # Move model to GPU
         if self.use_GPU:
-            self.gpu = torch.device('cuda')
+            self.gpu = torch.device('cuda:0')
             print("Using GPU device {}".format(self.gpu))
             self.model.cuda(device=self.gpu)
 
@@ -99,22 +100,17 @@ class Trainer(nn.Module):
                 print("Validation loss: {}".format(total_loss))
             # Save model after each epoch
             print("Saving model")
-            torch.save(self.model, "./training_logs/unet.pt")
+            torch.save(self.model, "./training_logs/"+self.save_name+".pt")
             # Print loss summary so far
+            print("Training loss over time:")
             for l in self.training_loss:
-                print(l)
-                print("Validation loss over time:")
+                print(l.cpu().numpy())
+            print("Validation loss over time:")
             for l in self.validation_loss:
-                print(l)
+                print(l.cpu().numpy())
         print("Finished training -> saving losses")
         np.save("./training_logs/training_loss", np.array(self.training_loss))
         np.save("./training_logs/validation_loss", np.array(self.validation_loss))
-        print("Training loss over time:")
-        for l in self.training_loss:
-            print(l)
-        print("Validation loss over time:")
-        for l in self.validation_loss:
-            print(l)
 
 
 if __name__ == "__main__":
