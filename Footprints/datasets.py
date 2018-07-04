@@ -25,7 +25,7 @@ class FootprintsDataset(Dataset):
 
     def augment_datapoint(self, datapoint):
         self.image_size = datapoint.shape[1:]
-        random_gen = np.random.rand(7) # alpha, beta, angle, top, left, bottom, right
+        random_gen = np.random.rand(12)  # alpha, beta, angle, crop(=4), occlude(=5)
         datapoint_t = np.transpose(datapoint, [1,2,0])
         image = datapoint_t[:,:,:3]
         mask = datapoint_t[:,:,3]
@@ -46,6 +46,14 @@ class FootprintsDataset(Dataset):
         image = self.rotate_image(image, angle)
         mask = self.rotate_image(mask, angle)
         footprint = self.rotate_image(footprint, angle)
+        # Occlude part of image and mask with probability 0.5
+        if random_gen[11] > 0.3:
+            top = int(random_gen[7] * self.image_size[0])
+            bottom = min(self.image_size[0] - 1, top + int(10 + random_gen[8] * 40))
+            left = int(random_gen[9] * self.image_size[1])
+            right = min(self.image_size[1] - 1, left + int(10 + random_gen[10] * 40))
+            image = self.occlude_position(image, top, bottom, left, right, binary=False)
+            mask = self.occlude_position(mask, top, bottom, left, right, binary=True)
 
         datapoint[0:3] = np.transpose(image, [2,0,1])
         datapoint[3] = mask
@@ -69,6 +77,16 @@ class FootprintsDataset(Dataset):
         if binary:
             crop = (crop > 0.5).astype(float)
         return crop
+
+    def occlude_position(self, image, top, bottom, left, right, binary=False):
+        if binary:
+            # Zero out mask
+            image[top:bottom, left:right] = 0
+        else:
+            # Create noise for RGB
+            noise = np.random.rand(bottom-top, right-left, 3)
+            image[top:bottom, left:right] = noise
+        return image
 
 
 
