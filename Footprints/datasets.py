@@ -47,17 +47,21 @@ class FootprintsDataset(Dataset):
         mask = self.rotate_image(mask, angle)
         footprint = self.rotate_image(footprint, angle)
         # Occlude part of image and mask with probability 0.5
-        if random_gen[11] > 0:
-            top = int(random_gen[7] * self.image_size[0])
-            bottom = min(self.image_size[0] - 1, top + int(10 + random_gen[8] * 40))
-            left = int(random_gen[9] * self.image_size[1])
-            right = min(self.image_size[1] - 1, left + int(10 + random_gen[10] * 40))
-            image = self.occlude_position(image, top, bottom, left, right, binary=False)
-            mask = self.occlude_position(mask, top, bottom, left, right, binary=True)
+        top = int(random_gen[7] * self.image_size[0])
+        bottom = min(self.image_size[0] - 1, top + int(15 + random_gen[8] * 40))
+        left = int(random_gen[9] * self.image_size[1])
+        right = min(self.image_size[1] - 1, left + int(15 + random_gen[10] * 40))
+        image = self.occlude_position(image, top, bottom, left, right, binary=False)
+        mask = self.occlude_position(mask, top, bottom, left, right, binary=True)
+        # Flip horizontally
+        if random_gen[11] > 0.5:
+            image = np.flip(image, axis=1)
+            mask = np.flip(mask, axis=1)
+            footprint = np.flip(footprint, axis=1)
 
         datapoint[0:3] = np.transpose(image, [2,0,1])
-        datapoint[3] = mask
-        datapoint[4] = footprint
+        datapoint[3] = mask > 0.5
+        datapoint[4] = footprint > 0.5
 
         return datapoint
 
@@ -68,7 +72,7 @@ class FootprintsDataset(Dataset):
         return image
 
     def rotate_image(self, image, angle):  # +- 3
-        image = ndi.interpolation.rotate(image, angle, reshape=False)
+        image = ndi.rotate(image, angle, reshape=False, order=1)
         return image
 
     def crop_and_resize(self, image, topleft, bottomright, binary=False):  # (25,25 | 110,240)
