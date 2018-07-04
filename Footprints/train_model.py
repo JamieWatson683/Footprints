@@ -27,6 +27,7 @@ class Trainer(nn.Module):
         self.validation_iou = []
         self.batch_size = batch_size
 
+
         # Move model to GPU
         if self.use_GPU:
             self.gpu = torch.device('cuda:0')
@@ -40,6 +41,7 @@ class Trainer(nn.Module):
         print("Success")
 
     def train_model(self, epochs):
+        self.best_iou = 0
         for epoch in range(epochs):
             print("----------------")
             print("Epoch Number {}".format(epoch))
@@ -113,9 +115,11 @@ class Trainer(nn.Module):
                 self.validation_iou.append(iou_all)
                 print("Mean Validation loss: {}".format(total_loss))
                 print("Mean Validation IoU: {}".format(iou_all))
-            # Save model after each epoch
-            print("Saving model")
-            torch.save(self.model, "./training_logs/"+self.save_name+".pt")
+            # Save model after each epoch if improvement
+            if iou_all > self.best_iou:
+                print("IoU improvement - saving model")
+                torch.save(self.model, "./training_logs/"+self.save_name+".pt")
+                self.best_iou = iou_all
             # Print loss summary so far
             print("Training loss over time:")
             for l in self.training_loss:
@@ -139,7 +143,7 @@ if __name__ == "__main__":
     unet = models.U_Net()
     trainer = Trainer(model=unet, training_path='./data/training_data/',
                       validation_path='./data/validation_data/', batch_size=32, eval_batch_size=128, use_GPU=True)
-    trainer.train_model(epochs=25)
+    trainer.train_model(epochs=50)
 
 
 
