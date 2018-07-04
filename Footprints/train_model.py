@@ -4,6 +4,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import models
 import datasets
+import os
 
 
 class Trainer(nn.Module):
@@ -30,6 +31,7 @@ class Trainer(nn.Module):
 
         # Move model to GPU
         if self.use_GPU:
+            os.environ['CUDA_VISIBLE_DEVICES'] = '1'
             self.gpu = torch.device('cuda:0')
             print("Using GPU device {}".format(self.gpu))
             self.model.cuda(device=self.gpu)

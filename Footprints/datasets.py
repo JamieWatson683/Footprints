@@ -47,12 +47,12 @@ class FootprintsDataset(Dataset):
         mask = self.rotate_image(mask, angle)
         footprint = self.rotate_image(footprint, angle)
         # Occlude part of image and mask with probability 0.5
-        top = int(random_gen[7] * self.image_size[0])
-        bottom = min(self.image_size[0] - 1, top + int(15 + random_gen[8] * 40))
-        left = int(random_gen[9] * self.image_size[1])
-        right = min(self.image_size[1] - 1, left + int(15 + random_gen[10] * 40))
-        image = self.occlude_position(image, top, bottom, left, right, binary=False)
-        mask = self.occlude_position(mask, top, bottom, left, right, binary=True)
+        # top = int(random_gen[7] * self.image_size[0])
+        # bottom = min(self.image_size[0] - 1, top + int(15 + random_gen[8] * 40))
+        # left = int(random_gen[9] * self.image_size[1])
+        # right = min(self.image_size[1] - 1, left + int(15 + random_gen[10] * 40))
+        # image = self.occlude_position(image, top, bottom, left, right, binary=False)
+        # mask = self.occlude_position(mask, top, bottom, left, right, binary=True)
         # Flip horizontally
         if random_gen[11] > 0.5:
             image = np.flip(image, axis=1)
