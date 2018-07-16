@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from skimage import io, color, measure
+from skimage import io, color, measure, morphology
 import os
 
 
@@ -13,6 +13,7 @@ def extract_footprint(image, template, mask, return_overlay=False):
 
     # Convert to appropriate type
     image = image.astype(np.float32)
+    image[150:,:] = 0
     template = template.astype(np.float32)
 
     # Find template in image
@@ -26,12 +27,12 @@ def extract_footprint(image, template, mask, return_overlay=False):
     # Optionally return overlay with footprint array
     if return_overlay:
         overlay = color.label2rgb(footprint, image, bg_label=0)
-        return footprint, overlay
+        return footprint, min_loc, overlay
     else:
-        return footprint
+        return footprint, min_loc
 
 
-def extract_all_footprints(path, save_footprint=True, save_overlay=True):
+def extract_all_footprints(path, save_footprint=True, save_overlay=True, two_masks=False, mask_cutoff_column=256):
     """"""
 
     # Load frames, template and mask
@@ -41,16 +42,42 @@ def extract_all_footprints(path, save_footprint=True, save_overlay=True):
         sky_frames.append(path + "sky_frames/" + name)
     sky_frames = io.imread_collection(sky_frames).concatenate()
 
-    template = (io.imread(path + 'template.png') / 255).astype(np.float32)
-    mask = io.imread(path + 'mask.png')[:, :, 0] == 255
+    if two_masks:
+        mask1 = io.imread(path + 'mask1.png')[:, :, 0] == 255
+        mask2 = io.imread(path + 'mask2.png')[:, :, 0] == 255
+        template1 = (io.imread(path + 'template1.png') / 255).astype(np.float32)
+        template2 = (io.imread(path + 'template2.png') / 255).astype(np.float32)
+    else:
+        mask = io.imread(path + 'mask.png')[:, :, 0] == 255
+        template = (io.imread(path + 'template.png') / 255).astype(np.float32)
+
 
     # Loop through frames - get footprint and overlay
     for index in range(len(sky_frames)):
         name = sky_names[index]
         image = (sky_frames[index] / 255).astype(np.float32)
-        footprint, overlay = extract_footprint(image, template, mask, return_overlay=True)
+        #print(name)
+        if not two_masks:
+            footprint, min_loc, overlay = extract_footprint(image, template, mask, return_overlay=True)
+        else:
+            footprint1, min_loc1, overlay1 = extract_footprint(image, template1, mask1, return_overlay=True)
+            if min_loc1[0] <= mask_cutoff_column:
+                footprint2, min_loc2, overlay2 = extract_footprint(image, template2, mask2, return_overlay=True)
+            if min_loc1[0] > mask_cutoff_column:
+                footprint, overlay = footprint1, overlay1
+            elif min_loc1[0] - mask_cutoff_column > -20:
+                #print("Binary erosion taking place {}".format(name))
+                footprint_diff = morphology.binary_erosion((footprint1 - footprint2) > 0)
+                footprint, overlay = footprint_diff + footprint2, overlay2
+            elif min_loc1[0] - mask_cutoff_column > -40:
+                #print("Binary erosion taking place {}".format(name))
+                footprint_diff = morphology.binary_erosion((footprint1 - footprint2) > 0)
+                footprint_diff = morphology.binary_erosion(footprint_diff)
+                footprint, overlay = footprint_diff + footprint2, overlay2
+            else:
+                footprint, overlay = footprint2, overlay2
 
-        # Save footprint and overlay
+            # Save footprint and overlay
         if save_footprint:
             np.save(path+"sky_footprints/footprints/"+name[:-4], footprint)
 
@@ -88,8 +115,7 @@ def place_footprint(image, sky_footprint, homography):
     return footprint, overlay
 
 
-def place_all_footprints(path, left_homography, right_homography, column_homog_cutoff,
-                         save_footprint=True, save_overlay=True):
+def place_all_footprints(path, homography, save_footprint=True, save_overlay=True):
 
     # Load names
     ground_names = os.listdir(path + "ground_frames")
@@ -97,13 +123,10 @@ def place_all_footprints(path, left_homography, right_homography, column_homog_c
         # Load image
         image = io.imread(path+"ground_frames/"+name)
         # Load footprint
+        number = name[12:-4]
         sky_footprint = np.load(path+"sky_footprints/footprints/sky_video"+name[12:-4]+".npy").astype(int)
 
-        footprint_props = measure.regionprops(sky_footprint)[0]
-        if footprint_props.centroid[1] >= column_homog_cutoff:
-            ground_footprint, overlay = place_footprint(image, sky_footprint, right_homography)
-        else:
-            ground_footprint, overlay = place_footprint(image, sky_footprint, left_homography)
+        ground_footprint, overlay = place_footprint(image, sky_footprint, homography)
 
         if save_footprint:
             np.save(path+"ground_footprints/footprints/"+name[:-4], ground_footprint)
