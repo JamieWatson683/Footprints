@@ -1,11 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+from torch.utils.data import DataLoader
+import datasets
 
 
 def load_model(model_file):
     # Load model trained on GPU into CPU
-    return torch.load(model_file, map_location=lambda storage, loc: storage)
+    model = torch.load(model_file, map_location=lambda storage, loc: storage)
+    return model
 
 
 def get_sample_heatmaps(model, samples):
@@ -13,6 +16,7 @@ def get_sample_heatmaps(model, samples):
     labels = samples[:, -1, :, :]
     inputs = torch.from_numpy(inputs).float()
     with torch.no_grad():
+        model.eval()
         model.forward(inputs)
         heatmaps = model.final.probability
     return heatmaps.numpy(), labels
@@ -37,16 +41,44 @@ def compare_heatmap(image, heatmap, label):
     plt.show()
 
 
-if __name__=='__main__':
-    indices = range(300, 350, 5)
+def IoU(predictions, labels):
+    intersection = np.multiply(predictions, labels).sum(-1).sum(-1)
+    union = np.maximum(predictions, labels).sum(-1).sum(-1)
+    return intersection / union
+
+
+def get_distribution_of_ious(logs_path, model_name, dataloader):
     print("Loading model...")
-    model = load_model("./training_logs/unet.pt")
-    print("Complete")
-    samples = load_samples(path="./data/training_data/", indices=indices)
-    print("Generating heatmaps...")
-    heatmaps, labels = get_sample_heatmaps(model, samples)
-    print("Done")
-    for i in range(len(indices)):
-        index = indices[i]
-        img = np.transpose(samples[i, 0:3, :, :], [1,2,0])
-        compare_heatmap(img, heatmaps[i, 0, :, :], labels[i])
+    model = load_model(logs_path+model_name)
+    model.eval()
+    print("Success")
+    with torch.no_grad():
+        iou_list = []
+        mask_sizes = []
+        print("Getting IoU results...")
+        for i, samples in enumerate(dataloader):
+            print("Batch number {} of {}".format(i, len(dataloader)))
+            inputs = samples['inputs'].float()
+            labels = samples['labels'].float().unsqueeze(1)
+            mask = inputs[:,-1,:,:]
+            pixels = mask.sum(-1).sum(-1)
+            pixels = torch.Tensor.tolist(pixels / (128*256))
+            model.forward(inputs)
+            predictions = model.final.probability > 0.5
+            ious = torch.Tensor.tolist(IoU(predictions, labels))
+            iou_list = iou_list + ious
+            mask_sizes = mask_sizes + pixels
+        iou_results = np.zeros((len(iou_list),2))
+        iou_results[:,0] = np.squeeze(np.array(iou_list))
+        iou_results[:,1] = np.squeeze(np.array(mask_sizes))
+    return iou_results
+
+
+if __name__=='__main__':
+    dataset = datasets.FootprintsDataset("./data/validation_data/", augment=False)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+    iou_results = get_distribution_of_ious(logs_path="./training_logs/RMSProp_no_occlusion/", model_name="model.pt",
+                                           dataloader=dataloader)
+    plt.figure()
+    plt.hist(iou_results[:,0])
+    plt.show()
