@@ -66,14 +66,14 @@ def extract_all_footprints(path, save_footprint=True, save_overlay=True, two_mas
             if min_loc1[0] > mask_cutoff_column:
                 footprint, overlay = footprint1, overlay1
             elif min_loc1[0] - mask_cutoff_column > -20:
-                #print("Binary erosion taking place {}".format(name))
+                print("Binary erosion taking place {}".format(name))
                 footprint_diff = morphology.binary_erosion((footprint1 - footprint2) > 0)
                 footprint, overlay = footprint_diff + footprint2, overlay2
-            elif min_loc1[0] - mask_cutoff_column > -40:
-                #print("Binary erosion taking place {}".format(name))
-                footprint_diff = morphology.binary_erosion((footprint1 - footprint2) > 0)
-                footprint_diff = morphology.binary_erosion(footprint_diff)
-                footprint, overlay = footprint_diff + footprint2, overlay2
+            # elif min_loc1[0] - mask_cutoff_column > -40:
+            #     print("Binary erosion taking place {}".format(name))
+            #     footprint_diff = morphology.binary_erosion((footprint1 - footprint2) > 0)
+            #     footprint_diff = morphology.binary_erosion(footprint_diff)
+            #     footprint, overlay = footprint_diff + footprint2, overlay2
             else:
                 footprint, overlay = footprint2, overlay2
 
