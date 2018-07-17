@@ -45,7 +45,7 @@ class Trainer(nn.Module):
         self.criterion = nn.BCEWithLogitsLoss(size_average=True)
         self.eval_criterion = nn.BCEWithLogitsLoss(size_average=False)
         self.stats_criterion = nn.BCEWithLogitsLoss(size_average=False, reduce=False)
-        self.optimiser = torch.optim.RMSprop(model.parameters(), lr=learning_rate)
+        self.optimiser = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
         print("Success")
         print("Model logs saved to {}".format("./training_logs/"+self.logs_path))

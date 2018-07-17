@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
 import datasets
+import os
 
 
 def load_model(model_file):
@@ -47,12 +48,17 @@ def IoU(predictions, labels):
     return intersection / union
 
 
-def get_distribution_of_ious(logs_path, model_name, dataloader):
+def get_distribution_of_ious(logs_path, model_name, dataloader, use_GPU=False):
     print("Loading model...")
     model = load_model(logs_path+model_name)
     model.eval()
     print("Success")
     with torch.no_grad():
+        if use_GPU:
+            os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+            gpu = torch.device('cuda:0')
+            print("Using GPU device {}".format(gpu))
+            model.cuda(device=gpu)
         iou_list = []
         mask_sizes = []
         print("Getting IoU results...")
@@ -60,6 +66,9 @@ def get_distribution_of_ious(logs_path, model_name, dataloader):
             print("Batch number {} of {}".format(i, len(dataloader)))
             inputs = samples['inputs'].float()
             labels = samples['labels'].float().unsqueeze(1)
+            if use_GPU:
+                    inputs = inputs.to(device=gpu)
+                    labels = labels.to(device=gpu)
             mask = inputs[:,-1,:,:]
             pixels = mask.sum(-1).sum(-1)
             pixels = torch.Tensor.tolist(pixels / (128*256))
@@ -75,10 +84,23 @@ def get_distribution_of_ious(logs_path, model_name, dataloader):
 
 
 if __name__=='__main__':
-    dataset = datasets.FootprintsDataset("./data/validation_data/", augment=False)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
-    iou_results = get_distribution_of_ious(logs_path="./training_logs/RMSProp_no_occlusion/", model_name="model.pt",
-                                           dataloader=dataloader)
+    # dataset = datasets.FootprintsDataset("./data/validation_data/", augment=False)
+    # dataloader = DataLoader(dataset, batch_size=128, shuffle=True)
+    # iou_results = get_distribution_of_ious(logs_path="./training_logs/RMSProp_no_occlusion/", model_name="model.pt",
+    #                                        dataloader=dataloader, use_GPU=True)
+    # np.save("./training_logs/RMSProp_no_occlusion/iou_results.npy", iou_results)
+
+    data = np.load("./training_logs/RMSProp_no_occlusion/iou_results.npy")
+    small = data[:,0][data[:,1]<=0.025]
+    moderate = data[:,0][np.logical_and(data[:,1]<=0.05, data[:,1]>0.025)]
+    large = data[:,0][data[:,1]>0.05]
     plt.figure()
-    plt.hist(iou_results[:,0])
+    plt.hist(small, bins=50)
     plt.show()
+    plt.figure()
+    plt.hist(moderate, bins=50)
+    plt.show()
+    plt.figure()
+    plt.hist(large, bins=50)
+    plt.show()
+
