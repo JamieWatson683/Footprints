@@ -5,11 +5,11 @@ import torch.nn.functional as F
 
 
 class U_Net(nn.Module):
-    def __init__(self):
+    def __init__(self, input_depth=4):
         super(U_Net, self).__init__()
 
         # Architecture
-        self.conv1 = EncoderLayer(in_channels=4, out_channels=32)
+        self.conv1 = EncoderLayer(in_channels=input_depth, out_channels=32)
         self.conv2 = EncoderLayer(in_channels=32, out_channels=64)
         self.conv3 = EncoderLayer(in_channels=64, out_channels=128)
         self.conv4 = EncoderLayer(in_channels=128, out_channels=256)
@@ -35,7 +35,6 @@ class U_Net(nn.Module):
         x = self.final(x, skip_connection=True, skip_data=self.conv1.featuremap)
 
         return x
-
 
 
 class EncoderLayer(nn.Module):

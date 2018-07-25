@@ -6,10 +6,11 @@ import os
 
 
 class FootprintsDataset(Dataset):
-    def __init__(self, path, augment=False):
+    def __init__(self, path, augment=False, mask_only=False):
         self.path = path
         self.size = len(os.listdir(path))
         self.augment = augment
+        self.mask_only = mask_only
 
     def __len__(self):
         return self.size
@@ -18,7 +19,10 @@ class FootprintsDataset(Dataset):
         datapoint = np.load(self.path+"data_"+str(item)+".npy")
         if self.augment:
             datapoint = self.augment_datapoint(datapoint)
-        inputs = datapoint[0:-1]
+        if self.mask_only:
+            inputs = np.expand_dims(datapoint[3], axis=0)
+        else:
+            inputs = datapoint[0:-1]
         label = datapoint[-1]
         sample = {'inputs': inputs, 'labels': label}
         return sample
