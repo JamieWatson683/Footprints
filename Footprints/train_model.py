@@ -10,18 +10,19 @@ import sys
 
 class Trainer(nn.Module):
     def __init__(self, model, training_path, validation_path, save_name='model', batch_size=32, eval_batch_size=64,
-                 learning_rate=0.001, use_GPU=False, logs_path="logs/"):
+                 learning_rate=0.001, use_GPU=False, logs_path="logs/", mask_only=False):
         super(Trainer, self).__init__()
         print("Creating training session...")
         self.model = model
         self.save_name = save_name
+        self.mask_only = mask_only
         if logs_path[-1] == "/":
             self.logs_path = logs_path
         else:
             self.logs_path = logs_path + "/"
-        self.training_data = datasets.FootprintsDataset(training_path, augment=True)
-        self.training_eval_data = datasets.FootprintsDataset(training_path, augment=False)
-        self.validation_data = datasets.FootprintsDataset(validation_path, augment=False)
+        self.training_data = datasets.FootprintsDataset(training_path, augment=True, mask_only=self.mask_only)
+        self.training_eval_data = datasets.FootprintsDataset(training_path, augment=False, mask_only=self.mask_only)
+        self.validation_data = datasets.FootprintsDataset(validation_path, augment=False, mask_only=self.mask_only)
         self.use_GPU = use_GPU
 
         self.train_dataloader = DataLoader(self.training_data, batch_size=batch_size, shuffle=True)
@@ -168,9 +169,10 @@ class Trainer(nn.Module):
 
 if __name__ == "__main__":
     run_name = sys.argv[1]
-    unet = models.U_Net()
+    unet = models.U_Net(input_depth=4)
     trainer = Trainer(model=unet, training_path='./data/training_data/', save_name='model', logs_path=run_name,
-                      validation_path='./data/validation_data/', batch_size=32, eval_batch_size=128, use_GPU=True)
+                      validation_path='./data/validation_data/', batch_size=32, eval_batch_size=128, use_GPU=True,
+                      mask_only=False)
     trainer.train_model(epochs=50)
 
 

@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
 import datasets
-import os
+import os, sys
 
 
 def load_model(model_file):
@@ -55,7 +55,7 @@ def get_distribution_of_ious(logs_path, model_name, dataloader, use_GPU=False):
     print("Success")
     with torch.no_grad():
         if use_GPU:
-            os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+            os.environ['CUDA_VISIBLE_DEVICES'] = '1'
             gpu = torch.device('cuda:0')
             print("Using GPU device {}".format(gpu))
             model.cuda(device=gpu)
@@ -84,23 +84,26 @@ def get_distribution_of_ious(logs_path, model_name, dataloader, use_GPU=False):
 
 
 if __name__=='__main__':
+    # run_name = sys.argv[1]
     # dataset = datasets.FootprintsDataset("./data/validation_data/", augment=False)
-    # dataloader = DataLoader(dataset, batch_size=128, shuffle=True)
-    # iou_results = get_distribution_of_ious(logs_path="./training_logs/RMSProp_no_occlusion/", model_name="model.pt",
+    # dataloader = DataLoader(dataset, batch_size=32, shuffle=False)
+    # iou_results = get_distribution_of_ious(logs_path="./training_logs/"+run_name+"/", model_name="model.pt",
     #                                        dataloader=dataloader, use_GPU=True)
-    # np.save("./training_logs/RMSProp_no_occlusion/iou_results.npy", iou_results)
+    # np.save("./training_logs/"+run_name+"/iou_results.npy", iou_results)
 
-    data = np.load("./training_logs/RMSProp_no_occlusion/iou_results.npy")
-    small = data[:,0][data[:,1]<=0.025]
-    moderate = data[:,0][np.logical_and(data[:,1]<=0.05, data[:,1]>0.025)]
-    large = data[:,0][data[:,1]>0.05]
-    plt.figure()
-    plt.hist(small, bins=50)
-    plt.show()
-    plt.figure()
-    plt.hist(moderate, bins=50)
-    plt.show()
-    plt.figure()
-    plt.hist(large, bins=50)
-    plt.show()
+    data = np.load("./training_logs/adam_no_occlusion/iou_results.npy")
+    # small = data[:,0][data[:,1]<=0.025]
+    # moderate = data[:,0][np.logical_and(data[:,1]<=0.05, data[:,1]>0.025)]
+    # large = data[:,0][data[:,1]>0.05]
+    # plt.figure()
+    # plt.hist(small, bins=50)
+    # plt.show()
+    # plt.figure()
+    # plt.hist(moderate, bins=25)
+    # plt.show()
+    # plt.figure()
+    # plt.hist(large, bins=25)
+    # plt.show()
+
+    print(data[475:,0].argmin())
 
