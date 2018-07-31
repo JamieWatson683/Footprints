@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
-import datasets
+import datasets, models
 import os, sys
 
 
@@ -82,8 +82,22 @@ def get_distribution_of_ious(logs_path, model_name, dataloader, use_GPU=False):
         iou_results[:,1] = np.squeeze(np.array(mask_sizes))
     return iou_results
 
+def assess_baseline(baselineModel, dataloader):
+    all_iou = 0
+    for i, samples in enumerate(dataloader):
+        # print("Batch number {} of {}".format(i, len(dataloader)))
+        inputs = samples['inputs'].float()
+        labels = samples['labels'].float()
+        predictions = baselineModel.forward(inputs)
+        iou = IoU(predictions, labels).sum()
+        all_iou += iou
+    return all_iou
+
+
 
 if __name__=='__main__':
+
+    ### IoU Results calc ###
     # run_name = sys.argv[1]
     # dataset = datasets.FootprintsDataset("./data/validation_data/", augment=False)
     # dataloader = DataLoader(dataset, batch_size=32, shuffle=False)
@@ -91,7 +105,8 @@ if __name__=='__main__':
     #                                        dataloader=dataloader, use_GPU=True)
     # np.save("./training_logs/"+run_name+"/iou_results.npy", iou_results)
 
-    data = np.load("./training_logs/adam_no_occlusion/iou_results.npy")
+    ### Plot IoU results by size ###
+    # data = np.load("./training_logs/adam_no_occlusion/iou_results.npy")
     # small = data[:,0][data[:,1]<=0.025]
     # moderate = data[:,0][np.logical_and(data[:,1]<=0.05, data[:,1]>0.025)]
     # large = data[:,0][data[:,1]>0.05]
@@ -105,5 +120,13 @@ if __name__=='__main__':
     # plt.hist(large, bins=25)
     # plt.show()
 
-    print(data[475:,0].argmin())
+    ### Assess Baseline ###
+    dataset = datasets.FootprintsDataset("./data/validation_data/", augment=False)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=False)
+    for size in range(20,30,1):
+        baseline = models.ResizeBaseline(resizing=size*0.01)
+        iou = assess_baseline(baseline, dataloader) / len(dataset)
+        print(size*0.01, iou)
+
+
 
