@@ -3,6 +3,7 @@ from torch.utils.data import Dataset, DataLoader
 import cv2
 import scipy.ndimage as ndi
 import os
+from skimage import measure, transform
 
 
 class FootprintsDataset(Dataset):
@@ -50,13 +51,11 @@ class FootprintsDataset(Dataset):
         image = self.rotate_image(image, angle)
         mask = self.rotate_image(mask, angle)
         footprint = self.rotate_image(footprint, angle)
-        # Occlude part of image and mask with probability 0.5
-        # top = int(random_gen[7] * self.image_size[0])
-        # bottom = min(self.image_size[0] - 1, top + int(15 + random_gen[8] * 40))
-        # left = int(random_gen[9] * self.image_size[1])
-        # right = min(self.image_size[1] - 1, left + int(15 + random_gen[10] * 40))
-        # image = self.occlude_position(image, top, bottom, left, right, binary=False)
-        # mask = self.occlude_position(mask, top, bottom, left, right, binary=True)
+        # Occlude part of image and mask
+        if random_gen[8] > 0.5:
+            sprite = int(random_gen[7]*18)
+            sprite = np.load("./data/occlusions/person_"+str(sprite)+".npy")
+            image, mask = self.occlude_image_and_mask(image, mask, sprite)
         # Flip horizontally
         if random_gen[11] > 0.5:
             image = np.flip(image, axis=1)
@@ -86,18 +85,20 @@ class FootprintsDataset(Dataset):
             crop = (crop > 0.5).astype(float)
         return crop
 
-    def occlude_position(self, image, top, bottom, left, right, binary=False):
-        if binary:
-            # Zero out mask
-            image[top:bottom, left:right] = 0
-        else:
-            # Create noise for RGB
-            noise = np.random.rand(bottom-top, right-left, 3)
-            image[top:bottom, left:right] = noise
-        return image
-
-
-
-
-
-
+    def occlude_image_and_mask(self, img, mask, sprite):
+        mask = (mask > 0) * 1
+        bbox = measure.regionprops(mask)[0].bbox
+        y = bbox[0]
+        x = bbox[1]
+        random_nums = np.random.rand(3)
+        sprite_y = int(sprite.shape[0] * np.maximum(random_nums[0], 0.2))
+        sprite_x = int(sprite.shape[1] * np.maximum(random_nums[0], 0.2))
+        sprite = transform.resize(sprite, (sprite_y, sprite_x), preserve_range=True)
+        y_max = np.minimum(128, y + sprite_y)
+        x_max = np.minimum(256, x + sprite_x)
+        img[y:y_max, x:x_max] = np.maximum(
+            img[y:y_max, x:x_max] - np.expand_dims(sprite[:y_max - y, :x_max - x, 3], -1), 0)
+        img[y:y_max, x:x_max] = img[y:y_max, x:x_max] + sprite[:y_max - y, :x_max - x, :3] / 255 * np.expand_dims(
+            sprite[:y_max - y, :x_max - x, 3], -1)
+        mask[y:y_max, x:x_max] = np.maximum(mask[y:y_max, x:x_max] - sprite[:y_max - y, :x_max - x, 3], 0)
+        return img, mask
