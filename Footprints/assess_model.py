@@ -55,7 +55,7 @@ def get_distribution_of_ious(logs_path, model_name, dataloader, use_GPU=False):
     print("Success")
     with torch.no_grad():
         if use_GPU:
-            os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+            os.environ['CUDA_VISIBLE_DEVICES'] = '0'
             gpu = torch.device('cuda:0')
             print("Using GPU device {}".format(gpu))
             model.cuda(device=gpu)
@@ -82,6 +82,47 @@ def get_distribution_of_ious(logs_path, model_name, dataloader, use_GPU=False):
         iou_results[:,1] = np.squeeze(np.array(mask_sizes))
     return iou_results
 
+
+def bayesian_results(logs_path, model_name, dataloader, runs, use_GPU=False):
+    print("Loading model...")
+    model = load_model(logs_path+model_name)
+    model.eval()
+    model.conv1.dropout.training = True
+    model.conv2.dropout.training = True
+    model.conv3.dropout.training = True
+    model.conv4.dropout.training = True
+    model.deconv1.dropout.training = True
+    model.deconv2.dropout.training = True
+    model.deconv3.dropout.training = True
+    model.deconv4.dropout.training = True
+
+
+    print("Success")
+    with torch.no_grad():
+        if use_GPU:
+            os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+            gpu = torch.device('cuda:0')
+            print("Using GPU device {}".format(gpu))
+            model.cuda(device=gpu)
+        iou = 0
+        for i, samples in enumerate(dataloader):
+            predictions = np.zeros((runs, len(samples['inputs']), 128, 256))
+            print("Batch number {} of {}".format(i, len(dataloader)))
+            for j in range(runs):
+                inputs = samples['inputs'].float()
+                labels = samples['labels'].float()
+                if use_GPU:
+                        inputs = inputs.to(device=gpu)
+                        labels = labels.to(device=gpu)
+                model.forward(inputs)
+                predictions[j, :, :, :] = model.final.probability[:,0,:,:]
+            predictions = predictions.mean(axis=0) > 0.5
+            print(predictions.shape, labels.shape)
+            iou += IoU(predictions, labels).sum()
+    return iou / len(dataloader.dataset)
+
+
+
 def assess_baseline(baselineModel, dataloader):
     all_iou = 0
     for i, samples in enumerate(dataloader):
@@ -99,14 +140,22 @@ if __name__=='__main__':
 
     ### IoU Results calc ###
     # run_name = sys.argv[1]
-    # dataset = datasets.FootprintsDataset("./data/validation_data/", augment=False)
-    # dataloader = DataLoader(dataset, batch_size=32, shuffle=False)
+    # dataset = datasets.FootprintsDataset("./data/validation_data/", augment=False, mask_only=False)
+    # dataloader = DataLoader(dataset, batch_size=128, shuffle=False)
     # iou_results = get_distribution_of_ious(logs_path="./training_logs/"+run_name+"/", model_name="model.pt",
     #                                        dataloader=dataloader, use_GPU=True)
     # np.save("./training_logs/"+run_name+"/iou_results.npy", iou_results)
 
+    ### Bayesian Results calc ###
+    run_name = sys.argv[1]
+    dataset = datasets.FootprintsDataset("./data/validation_data/", augment=False, mask_only=False)
+    dataloader = DataLoader(dataset, batch_size=128, shuffle=False)
+    iou_results = bayesian_results(logs_path="./training_logs/"+run_name+"/", model_name="model.pt",
+                                           dataloader=dataloader, runs=100, use_GPU=True)
+    print(iou_results)
+
     ### Plot IoU results by size ###
-    # data = np.load("./training_logs/adam_no_occlusion/iou_results.npy")
+    # data = np.load("./training_logs/occlusions_big/iou_results.npy")
     # small = data[:,0][data[:,1]<=0.025]
     # moderate = data[:,0][np.logical_and(data[:,1]<=0.05, data[:,1]>0.025)]
     # large = data[:,0][data[:,1]>0.05]
@@ -121,12 +170,12 @@ if __name__=='__main__':
     # plt.show()
 
     ### Assess Baseline ###
-    dataset = datasets.FootprintsDataset("./data/validation_data/", augment=False)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=False)
-    for size in range(20,30,1):
-        baseline = models.ResizeBaseline(resizing=size*0.01)
-        iou = assess_baseline(baseline, dataloader) / len(dataset)
-        print(size*0.01, iou)
+    # dataset = datasets.FootprintsDataset("./data/validation_data/", augment=False)
+    # dataloader = DataLoader(dataset, batch_size=32, shuffle=False)
+    # for size in range(20,30,1):
+    #     baseline = models.ResizeBaseline(resizing=size*0.01)
+    #     iou = assess_baseline(baseline, dataloader) / len(dataset)
+    #     print(size*0.01, iou)
 
 
 

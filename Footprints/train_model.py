@@ -20,7 +20,7 @@ class Trainer(nn.Module):
             self.logs_path = logs_path
         else:
             self.logs_path = logs_path + "/"
-        self.training_data = datasets.FootprintsDataset(training_path, augment=True, mask_only=self.mask_only)
+        self.training_data = datasets.FootprintsDataset(training_path, augment=False, mask_only=self.mask_only)
         self.training_eval_data = datasets.FootprintsDataset(training_path, augment=False, mask_only=self.mask_only)
         self.validation_data = datasets.FootprintsDataset(validation_path, augment=False, mask_only=self.mask_only)
         self.use_GPU = use_GPU
@@ -46,7 +46,7 @@ class Trainer(nn.Module):
         self.criterion = nn.BCEWithLogitsLoss(size_average=True)
         self.eval_criterion = nn.BCEWithLogitsLoss(size_average=False)
         self.stats_criterion = nn.BCEWithLogitsLoss(size_average=False, reduce=False)
-        self.optimiser = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        self.optimiser = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0.0)
 
         print("Success")
         print("Model logs saved to {}".format("./training_logs/"+self.logs_path))
@@ -75,6 +75,8 @@ class Trainer(nn.Module):
                 self.optimiser.zero_grad()
                 loss.backward()
                 self.optimiser.step()
+
+
 
             print("Epoch complete -> computing current loss and IoU...")
             # Estimate training loss
@@ -168,10 +170,18 @@ class Trainer(nn.Module):
 
 
 if __name__ == "__main__":
+    # run_name = sys.argv[1]
+    # unet = models.Big_U_Net(input_depth=4)
+    # trainer = Trainer(model=unet, training_path='./data/training_data/', save_name='model', logs_path=run_name,
+    #                   validation_path='./data/validation_data/', batch_size=32, eval_batch_size=96, use_GPU=True,
+    #                   mask_only=False)
+    # trainer.train_model(epochs=50)
+
+    ### Synthetic -- set augment to FALSE###
     run_name = sys.argv[1]
     unet = models.U_Net(input_depth=4)
-    trainer = Trainer(model=unet, training_path='./data/training_data/', save_name='model', logs_path=run_name,
-                      validation_path='./data/validation_data/', batch_size=32, eval_batch_size=128, use_GPU=True,
+    trainer = Trainer(model=unet, training_path='./data/synthetic/training_data/', save_name='model', logs_path=run_name,
+                      validation_path='./data/synthetic/validation_data/', batch_size=32, eval_batch_size=96, use_GPU=True,
                       mask_only=False)
     trainer.train_model(epochs=50)
 
