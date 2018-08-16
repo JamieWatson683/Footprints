@@ -4,7 +4,7 @@ from skimage import io, color, measure, morphology
 import os
 
 
-def extract_footprint(image, template, mask, return_overlay=False):
+def extract_footprint(image, template, mask, outline=None, return_overlay=False, use_outline=False):
     """"""
 
     # Normalise image if necessary
@@ -13,12 +13,16 @@ def extract_footprint(image, template, mask, return_overlay=False):
 
     # Convert to appropriate type
     image = image.astype(np.float32)
-    image[150:,:] = 0
+    # image[150:,:] = 0
     template = template.astype(np.float32)
 
     # Find template in image
-    result = cv2.matchTemplate(image, template, 0)
-    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+    if not use_outline:
+        result = cv2.matchTemplate(image, template, 0)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+    else:
+        result = cv2.matchTemplate(image, template, 0, mask=outline)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
     # Add mask to array
     footprint = np.zeros((image.shape[0], image.shape[1]))
@@ -32,7 +36,8 @@ def extract_footprint(image, template, mask, return_overlay=False):
         return footprint, min_loc
 
 
-def extract_all_footprints(path, save_footprint=True, save_overlay=True, two_masks=False, mask_cutoff_column=256):
+def extract_all_footprints(path, save_footprint=True, save_overlay=True, two_masks=False, mask_cutoff_column=256,
+                          use_outline=False):
     """"""
 
     # Load frames, template and mask
@@ -47,10 +52,14 @@ def extract_all_footprints(path, save_footprint=True, save_overlay=True, two_mas
         mask2 = io.imread(path + 'mask2.png')[:, :, 0] == 255
         template1 = (io.imread(path + 'template1.png') / 255).astype(np.float32)
         template2 = (io.imread(path + 'template2.png') / 255).astype(np.float32)
+        if use_outline:
+            outline1 = io.imread(path + 'outline1.png')[:, :, 0] == 255
+            outline2 = io.imread(path + 'outline2.png')[:, :, 0] == 255
     else:
         mask = io.imread(path + 'mask.png')[:, :, 0] == 255
         template = (io.imread(path + 'template.png') / 255).astype(np.float32)
-
+        if use_outline:
+            outline = io.imread(path + 'outline.png')[:, :, 0] == 255
 
     # Loop through frames - get footprint and overlay
     for index in range(len(sky_frames)):
@@ -125,6 +134,27 @@ def place_all_footprints(path, homography, save_footprint=True, save_overlay=Tru
         # Load footprint
         number = name[12:-4]
         sky_footprint = np.load(path+"sky_footprints/footprints/sky_video"+name[12:-4]+".npy").astype(int)
+
+        ground_footprint, overlay = place_footprint(image, sky_footprint, homography)
+
+        if save_footprint:
+            np.save(path+"ground_footprints/footprints/"+name[:-4], ground_footprint)
+
+        if save_overlay:
+            io.imsave(path+"ground_footprints/overlays/"+name, overlay)
+            
+
+def place_all_footprints_manual(path, homography, save_footprint=True, save_overlay=True):
+
+    # Load names
+    ground_names = os.listdir(path + "ground_frames")
+    for name in ground_names:
+        # Load image
+        image = io.imread(path+"ground_frames/"+name)
+        # Load footprint
+        number = name[12:-4]
+        sky_footprint = io.imread(path + "sky_footprints/sky_video" + number + ".png")
+        sky_footprint = np.logical_and(sky_footprint[:,:,0]==255 , sky_footprint[:,:,1]==0, sky_footprint[:,:,2]==0)
 
         ground_footprint, overlay = place_footprint(image, sky_footprint, homography)
 
